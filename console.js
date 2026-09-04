@@ -14,6 +14,7 @@
   const SCROLL_MS = 900;
   const IDLE_ROUNDS = 4;
   const MAX_MINUTES = 8;
+  const PANEL_CLEAR_MS = 8000;
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -159,116 +160,4 @@
     const started = Date.now();
     const root = scrollRoot();
 
-    while (idle < IDLE_ROUNDS && Date.now() - started < MAX_MINUTES * 60 * 1000) {
-      harvest(map);
-      onProgress(map.size);
-
-      const atBottom =
-        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 80;
-
-      if (map.size === last) {
-        idle += 1;
-        if (!atBottom) {
-          root.scrollTop = Math.max(0, root.scrollTop - 400);
-          window.scrollBy(0, -400);
-          await sleep(400);
-          window.scrollBy(0, window.innerHeight * 0.9);
-          root.scrollTop += Math.floor((root.clientHeight || 600) * 0.9);
-        }
-      } else {
-        idle = 0;
-        last = map.size;
-        window.scrollBy(0, window.innerHeight * 0.85);
-        root.scrollTop += Math.floor((root.clientHeight || 600) * 0.85);
-      }
-
-      const more = [...document.querySelectorAll("span, div")].find((n) =>
-        /^(retry|try again|see more|show more)$/i.test((n.textContent || "").trim())
-      );
-      if (more) more.click();
-
-      await sleep(SCROLL_MS);
-    }
-
-    harvest(map);
-    return [...map.values()];
-  }
-
-  function csv(rows) {
-    const head = "account_id,profile_name,username,follows_back,profile_url";
-    const body = rows
-      .map((r) =>
-        [r.id || "", r.name || "", r.user, r.followsBack ? "yes" : "no", r.url]
-          .map((v) => '"' + String(v).replace(/"/g, '""') + '"')
-          .join(",")
-      )
-      .join("\n");
-    return head + "\n" + body;
-  }
-
-  function download(name, rows) {
-    const blob = new Blob([csv(rows)], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = name;
-    a.click();
-  }
-
-  function panel(text) {
-    let el = document.getElementById("keep-review-panel");
-    if (!el) {
-      el = document.createElement("div");
-      el.id = "keep-review-panel";
-      el.style.cssText =
-        "position:fixed;z-index:999999;right:16px;bottom:16px;max-width:360px;background:#111;color:#eee;padding:12px 14px;border-radius:10px;font:13px/1.4 system-ui;box-shadow:0 8px 24px #0008";
-      document.body.appendChild(el);
-    }
-    el.textContent = text;
-  }
-
-  (async () => {
-    if (!/\/following\/?$/.test(location.pathname)) {
-      console.warn("Open your Following page first: x.com/<handle>/following");
-      panel("Open x.com/<handle>/following then paste again.");
-      return;
-    }
-
-    const extra = window.prompt(
-      "Keep list (optional). Comma-separated @handles you follow on purpose.\nLeave empty if none.",
-      ""
-    );
-    const keepSet = parseKeep(extra);
-
-    panel("Scrolling following list… keep this tab in front.");
-    const all = await scrape((n) => {
-      console.log("Scanned", n, "accounts…");
-      panel("Scanned " + n + " accounts… keep this tab in front.");
-    });
-
-    const mutuals = all.filter((a) => a.followsBack);
-    const oneWay = all.filter((a) => !a.followsBack);
-    const keep = oneWay.filter((a) => keepSet.has(a.user));
-    const review = oneWay.filter((a) => !keepSet.has(a.user));
-
-    console.log("Following scanned:", all.length);
-    console.log("Mutuals:", mutuals.length, mutuals.map((a) => a.user));
-    console.log("Keep (one-way, protected):", keep.length, keep.map((a) => a.user));
-    console.log("Review (one-way, not in keep):", review.length, review.map((a) => a.user));
-
-    download("mutuals.csv", mutuals);
-    download("keep.csv", keep);
-    download("review.csv", review);
-
-    panel(
-      "Done. " +
-        all.length +
-        " following · " +
-        mutuals.length +
-        " mutuals · " +
-        keep.length +
-        " keep · " +
-        review.length +
-        " review. CSVs downloaded."
-    );
-  })();
-})();
+   
