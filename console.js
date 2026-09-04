@@ -12,7 +12,7 @@
   ];
 
   const SCROLL_MS = 900;
-  const IDLE_ROUNDS = 18;
+  const IDLE_ROUNDS = 4;
   const MAX_MINUTES = 8;
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -65,6 +65,39 @@
     return "";
   }
 
+  function accountIdFromCell(cell) {
+    const btn = cell.querySelector('[data-testid$="-unfollow"], [data-testid$="-follow"]');
+    const testid = btn && btn.getAttribute("data-testid");
+    if (!testid) return "";
+    const id = testid.replace(/-(un)?follow$/i, "");
+    return /^\d+$/.test(id) ? id : "";
+  }
+
+  function profileNameFromCell(cell, username) {
+    const handle = norm(username);
+    const links = [...cell.querySelectorAll('a[href^="/"]')];
+    for (const a of links) {
+      const raw = (a.getAttribute("href") || "").split("?")[0].split("#")[0];
+      const part = raw.replace(/^\//, "").split("/")[0];
+      if (norm(part) !== handle) continue;
+      const label = (a.textContent || "").replace(/\s+/g, " ").trim();
+      if (!label) continue;
+      if (norm(label) === handle || label === "@" + username) continue;
+      if (/^follows you$/i.test(label)) continue;
+      return label;
+    }
+    const spans = [...cell.querySelectorAll("span")];
+    for (const s of spans) {
+      const label = (s.textContent || "").replace(/\s+/g, " ").trim();
+      if (!label) continue;
+      if (norm(label) === handle || label === "@" + username) continue;
+      if (/follows you|follow|pending|following/i.test(label)) continue;
+      if (label.length > 60) continue;
+      return label;
+    }
+    return "";
+  }
+
   function followsYou(cell) {
     if (cell.querySelector('[data-testid="userFollowIndicator"]')) return true;
     const nodes = cell.querySelectorAll("span, div");
@@ -87,19 +120,10 @@
   }
 
   function cells() {
-    const roots = [
+    return [
       ...document.querySelectorAll('[data-testid="UserCell"]'),
       ...document.querySelectorAll('[data-testid="cellInnerDiv"]')
     ];
-    const unique = [];
-    const seen = new Set();
-    for (const el of roots) {
-      const user = usernameFromCell(el);
-      if (!user || seen.has(el)) continue;
-      seen.add(el);
-      unique.push(el);
-    }
-    return unique;
   }
 
   function scrollRoot() {
@@ -116,7 +140,11 @@
       if (!user) continue;
       const prev = map.get(user);
       const back = followsYou(cell);
+      const name = profileNameFromCell(cell, user);
+      const id = accountIdFromCell(cell);
       map.set(user, {
+        id: (prev && prev.id) || id,
+        name: (prev && prev.name) || name,
         user,
         followsBack: Boolean(prev && prev.followsBack) || back,
         url: "https://x.com/" + user
@@ -135,13 +163,18 @@
       harvest(map);
       onProgress(map.size);
 
+      const atBottom =
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 80;
+
       if (map.size === last) {
         idle += 1;
-        root.scrollTop = Math.max(0, root.scrollTop - 400);
-        window.scrollBy(0, -400);
-        await sleep(400);
-        window.scrollBy(0, window.innerHeight * 0.9);
-        root.scrollTop += Math.floor((root.clientHeight || 600) * 0.9);
+        if (!atBottom) {
+          root.scrollTop = Math.max(0, root.scrollTop - 400);
+          window.scrollBy(0, -400);
+          await sleep(400);
+          window.scrollBy(0, window.innerHeight * 0.9);
+          root.scrollTop += Math.floor((root.clientHeight || 600) * 0.9);
+        }
       } else {
         idle = 0;
         last = map.size;
@@ -162,10 +195,10 @@
   }
 
   function csv(rows) {
-    const head = "username,follows_back,profile_url";
+    const head = "account_id,profile_name,username,follows_back,profile_url";
     const body = rows
       .map((r) =>
-        [r.user, r.followsBack ? "yes" : "no", r.url]
+        [r.id || "", r.name || "", r.user, r.followsBack ? "yes" : "no", r.url]
           .map((v) => '"' + String(v).replace(/"/g, '""') + '"')
           .join(",")
       )
@@ -237,11 +270,5 @@
         review.length +
         " review. CSVs downloaded."
     );
-
-    if (all.length < 50) {
-      console.warn(
-        "Scan looks short. Reload /following, keep the tab visible, allow multiple downloads, run again."
-      );
-    }
   })();
 })();
