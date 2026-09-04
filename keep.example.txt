@@ -1,0 +1,4 @@
+# One account per line. Use @handle or numeric account ID.
+# This example file is safe to commit. Do not commit your real list.
+# 1234567890
+# example_news_account
