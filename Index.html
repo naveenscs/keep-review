@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Keep / Review</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1115;
+      --card: #171b22;
+      --line: #2a3140;
+      --text: #e8edf5;
+      --muted: #9aa6b8;
+      --keep: #3dd68c;
+      --review: #f5c15c;
+      --mutual: #7ab8ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
+    h1 { font-size: 1.6rem; margin: 0 0 8px; }
+    p { color: var(--muted); }
+    .row { display: grid; gap: 12px; grid-template-columns: 1fr; }
+    @media (min-width: 720px) { .row { grid-template-columns: 1fr 1fr 1fr; } }
+    .drop {
+      border: 1px dashed var(--line);
+      background: var(--card);
+      border-radius: 12px;
+      padding: 16px;
+      min-height: 120px;
+    }
+    .drop strong { display: block; margin-bottom: 6px; }
+    .drop input { width: 100%; margin-top: 10px; }
+    .ok { color: var(--keep); font-size: 0.85rem; }
+    .stats { display: flex; gap: 16px; flex-wrap: wrap; margin: 20px 0; }
+    .stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; min-width: 140px; }
+    .stat b { display: block; font-size: 1.3rem; }
+    .keep b { color: var(--keep); }
+    .review b { color: var(--review); }
+    .mutual b { color: var(--mutual); }
+    button {
+      background: #e8edf5;
+      color: #111;
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin: 0 8px 8px 0;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+    th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); }
+    a { color: var(--mutual); }
+    .err { color: #ff8b8b; }
+    textarea {
+      width: 100%;
+      min-height: 90px;
+      background: #0c0f14;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Keep / Review</h1>
+    <p>
+      Local-only split of accounts you follow that do not follow you back.
+      Files never leave this browser tab. No unfollow.
+    </p>
+
+    <div class="row">
+      <label class="drop">
+        <strong>1. following.js</strong>
+        From your X archive <code>data/</code> folder.
+        <input id="followingFile" type="file" accept=".js,.json,.txt" />
+        <div id="followingStatus"></div>
+      </label>
+      <label class="drop">
+        <strong>2. follower.js</strong>
+        Same archive. Sometimes named <code>followers.js</code>.
+        <input id="followerFile" type="file" accept=".js,.json,.txt" />
+        <div id="followerStatus"></div>
+      </label>
+      <label class="drop">
+        <strong>3. keep.txt (optional)</strong>
+        IDs or @handles to protect, one per line.
+        <input id="keepFile" type="file" accept=".txt" />
+        <div id="keepStatus"></div>
+      </label>
+    </div>
+
+    <p>Or paste a keep list here:</p>
+    <textarea id="keepText" placeholder="1234567890&#10;example_account"></textarea>
+
+    <p id="error" class="err"></p>
+    <div class="stats" id="stats" hidden>
+      <div class="stat"><span>Following</span><b id="nFollowing">0</b></div>
+      <div class="stat"><span>Followers</span><b id="nFollowers">0</b></div>
+      <div class="stat mutual"><span>Mutuals</span><b id="nMutuals">0</b></div>
+      <div class="stat keep"><span>Keep</span><b id="nKeep">0</b></div>
+      <div class="stat review"><span>Review</span><b id="nReview">0</b></div>
+    </div>
+    <div id="actions" hidden>
+      <button data-dl="mutuals">Download mutuals.csv</button>
+      <button data-dl="keep">Download keep.csv</button>
+      <button data-dl="review">Download review.csv</button>
+    </div>
+    <h2>Review</h2>
+    <p>One-way follows that are not in your keep list. Open a profile on X yourself if you want to unfollow.</p>
+    <div id="reviewTable"></div>
+  </main>
+  <script src="app.js"></script>
+</body>
