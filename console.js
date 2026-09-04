@@ -15,6 +15,7 @@
   const IDLE_ROUNDS = 4;
   const MAX_MINUTES = 8;
   const PANEL_CLEAR_MS = 8000;
+  const AFTER_DOWNLOAD_MS = 1500;
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -191,11 +192,11 @@
     a.click();
   }
 
-  function idList(rows) {
+  function nameList(rows) {
     return rows
-      .map((r) => r.id || r.user)
+      .map((r) => (r.name && r.name.trim()) || (r.user ? "@" + r.user : ""))
       .filter(Boolean)
-      .join(",");
+      .join(", ");
   }
 
   function removePanel() {
@@ -265,13 +266,27 @@
         keep.length +
         " keep · " +
         review.length +
+        " review. Saving files…"
+    );
+
+    await sleep(AFTER_DOWNLOAD_MS);
+
+    window.prompt(
+      "Review profile names (copy, then OK/Cancel). Files should already be in Downloads.",
+      nameList(review)
+    );
+
+    panel(
+      "Done. " +
+        all.length +
+        " following · " +
+        mutuals.length +
+        " mutuals · " +
+        keep.length +
+        " keep · " +
+        review.length +
         " review. Click to dismiss."
     );
     setTimeout(removePanel, PANEL_CLEAR_MS);
-
-    window.prompt(
-      "Review account IDs (copy, then OK/Cancel). Blank IDs fall back to username.",
-      idList(review)
-    );
   })();
 })();
