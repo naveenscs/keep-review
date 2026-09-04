@@ -11,8 +11,9 @@
     // "nasa"
   ];
 
-  const SCROLL_MS = 1200;
-  const IDLE_ROUNDS = 8;
+  const SCROLL_MS = 900;
+  const IDLE_ROUNDS = 18;
+  const MAX_MINUTES = 8;
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -33,76 +34,130 @@
     return set;
   }
 
+  const SKIP = new Set([
+    "home",
+    "explore",
+    "search",
+    "i",
+    "settings",
+    "notifications",
+    "messages",
+    "compose",
+    "intent",
+    "tos",
+    "privacy",
+    "login",
+    "signup",
+    "following",
+    "followers",
+    "verified"
+  ]);
+
   function usernameFromCell(cell) {
     const links = [...cell.querySelectorAll('a[href^="/"]')];
     for (const a of links) {
-      const path = (a.getAttribute("href") || "").split("?")[0];
-      const part = path.replace(/^\//, "").split("/")[0];
-      if (
-        part &&
-        ![
-          "home",
-          "explore",
-          "search",
-          "i",
-          "settings",
-          "notifications",
-          "messages",
-          "compose",
-          "intent"
-        ].includes(part.toLowerCase())
-      ) {
-        return norm(part);
-      }
+      const raw = (a.getAttribute("href") || "").split("?")[0].split("#")[0];
+      const part = raw.replace(/^\//, "").split("/")[0];
+      if (!part || SKIP.has(part.toLowerCase())) continue;
+      if (!/^[A-Za-z0-9_]+$/.test(part)) continue;
+      return norm(part);
     }
     return "";
   }
 
   function followsYou(cell) {
     if (cell.querySelector('[data-testid="userFollowIndicator"]')) return true;
+    const nodes = cell.querySelectorAll("span, div");
+    for (const n of nodes) {
+      const t = (n.textContent || "").trim().toLowerCase();
+      if (
+        t === "follows you" ||
+        t === "follow you" ||
+        t === "te sigue" ||
+        t === "vous suit" ||
+        t === "folgt dir" ||
+        t === "segue você" ||
+        t === "ti segue"
+      ) {
+        return true;
+      }
+    }
     const t = (cell.innerText || "").toLowerCase();
-    return (
-      t.includes("follows you") ||
-      t.includes("te sigue") ||
-      t.includes("vous suit") ||
-      t.includes("folgt dir") ||
-      t.includes("segue você") ||
-      t.includes("ti segue")
-    );
+    return /\bfollows you\b|\bte sigue\b|\bvous suit\b|\bfolgt dir\b/.test(t);
   }
 
   function cells() {
-    const found = [
+    const roots = [
       ...document.querySelectorAll('[data-testid="UserCell"]'),
       ...document.querySelectorAll('[data-testid="cellInnerDiv"]')
     ];
-    return found.filter((el) => usernameFromCell(el));
+    const unique = [];
+    const seen = new Set();
+    for (const el of roots) {
+      const user = usernameFromCell(el);
+      if (!user || seen.has(el)) continue;
+      seen.add(el);
+      unique.push(el);
+    }
+    return unique;
   }
 
-  async function scrape() {
+  function scrollRoot() {
+    return (
+      document.querySelector('[data-testid="primaryColumn"]') ||
+      document.scrollingElement ||
+      document.documentElement
+    );
+  }
+
+  function harvest(map) {
+    for (const cell of cells()) {
+      const user = usernameFromCell(cell);
+      if (!user) continue;
+      const prev = map.get(user);
+      const back = followsYou(cell);
+      map.set(user, {
+        user,
+        followsBack: Boolean(prev && prev.followsBack) || back,
+        url: "https://x.com/" + user
+      });
+    }
+  }
+
+  async function scrape(onProgress) {
     const map = new Map();
     let idle = 0;
     let last = 0;
+    const started = Date.now();
+    const root = scrollRoot();
 
-    while (idle < IDLE_ROUNDS) {
-      for (const cell of cells()) {
-        const user = usernameFromCell(cell);
-        if (!user) continue;
-        map.set(user, {
-          user,
-          followsBack: followsYou(cell),
-          url: "https://x.com/" + user
-        });
-      }
-      if (map.size === last) idle += 1;
-      else {
+    while (idle < IDLE_ROUNDS && Date.now() - started < MAX_MINUTES * 60 * 1000) {
+      harvest(map);
+      onProgress(map.size);
+
+      if (map.size === last) {
+        idle += 1;
+        root.scrollTop = Math.max(0, root.scrollTop - 400);
+        window.scrollBy(0, -400);
+        await sleep(400);
+        window.scrollBy(0, window.innerHeight * 0.9);
+        root.scrollTop += Math.floor((root.clientHeight || 600) * 0.9);
+      } else {
         idle = 0;
         last = map.size;
+        window.scrollBy(0, window.innerHeight * 0.85);
+        root.scrollTop += Math.floor((root.clientHeight || 600) * 0.85);
       }
-      window.scrollTo(0, document.body.scrollHeight);
-      console.log("Scanned", map.size, "accounts…");
+
+      const more = [...document.querySelectorAll("span, div")].find((n) =>
+        /^(retry|try again|see more|show more)$/i.test((n.textContent || "").trim())
+      );
+      if (more) more.click();
+
       await sleep(SCROLL_MS);
     }
+
+    harvest(map);
     return [...map.values()];
   }
 
@@ -152,7 +207,10 @@
     const keepSet = parseKeep(extra);
 
     panel("Scrolling following list… keep this tab in front.");
-    const all = await scrape();
+    const all = await scrape((n) => {
+      console.log("Scanned", n, "accounts…");
+      panel("Scanned " + n + " accounts… keep this tab in front.");
+    });
 
     const mutuals = all.filter((a) => a.followsBack);
     const oneWay = all.filter((a) => !a.followsBack);
@@ -179,5 +237,11 @@
         review.length +
         " review. CSVs downloaded."
     );
+
+    if (all.length < 50) {
+      console.warn(
+        "Scan looks short. Reload /following, keep the tab visible, allow multiple downloads, run again."
+      );
+    }
   })();
 })();
