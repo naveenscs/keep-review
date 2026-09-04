@@ -67,4 +67,4 @@ Your real keep list stays in that popup (or in a private file on your computer).
 10. When it finishes, your Downloads folder should contain:
     - `mutuals.csv`
     - `keep.csv`
-    - `review.csv
+    - `review.csv`
